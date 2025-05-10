@@ -1,0 +1,5 @@
+django
+djangorestframework
+python-decouple==3.8
+huggingface_hub
+djangorestframework-simplejwt
