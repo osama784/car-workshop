@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.generics import CreateAPIView
 from rest_framework import status, exceptions
 
+from django.db import transaction
 from django.utils import timezone
 
 from .models import Appointment
@@ -11,7 +12,6 @@ from .serializers import AppointmentSerializer
 from .utils import fetch_prompt_info
 from .ai import send_prompt
 
-# from ..ai import send_prompt
 
 # Create your views here.
 
@@ -52,41 +52,59 @@ def get_available_times(request):
 
     # get every day and see available appointments in it, and if there is, any increase the counter
     num_of_appointments = 0
-    today = timezone.now()
     
     appointment_duration = int(fetched_resposne.get("time to fix"))
     available_dates = {}
-    
-    current_timezone = timezone.get_current_timezone()
-    appointment_start_time = timezone.datetime(today.year, today.month, today.day, 8, 0, tzinfo=current_timezone)
+
+    tomrrow = timezone.now() + timezone.timedelta(days=1)
+    appointment_start_time = tomrrow.replace(hour=8, minute=0, second=0, microsecond=0)
     appointment_end_time = appointment_start_time + timezone.timedelta(minutes=appointment_duration)
+    end_of_day = appointment_start_time.replace(hour=18, minute=0, second=0, microsecond=0)
     
-    while (appointment_start_time - today).days != 11 or num_of_appointments != 10:
-        appointments_for_day = appointments.filter(start_time__day=appointment_start_time.day)
+    for _ in range(11):
+        if num_of_appointments >= 10:
+            break
+
+        appointments_for_day = appointments.filter(start_time__date=appointment_start_time.date())
         current_day_hours = []
-        while appointment_end_time.hour <= 18:
-            if appointments_for_day.filter(start_time__lt=appointment_end_time).exists():
-                appointment_start_time = appointments_for_day.last().end_time # note: appointments sorted by end_time
+
+        while appointment_end_time <= end_of_day:
+            overlapping = appointments_for_day.filter(
+                start_time__lt=appointment_end_time,
+                end_time__gt=appointment_start_time
+                ).exists()
+            if overlapping:
+                last_appointment = appointments_for_day.filter(end_time__gt=appointment_start_time).first()
+                if last_appointment:
+                    appointment_start_time = last_appointment.end_time
+                else:
+                    appointment_start_time = appointment_end_time
+                
                 appointment_end_time = appointment_start_time + timezone.timedelta(minutes=appointment_duration)
             else:
-                appointment_start_time = appointment_end_time
-                appointment_end_time = appointment_start_time + timezone.timedelta(minutes=appointment_duration)
-
                 current_day_hours.append(f'{appointment_start_time.hour}:{appointment_start_time.minute}:00 to {appointment_end_time.hour}:{appointment_end_time.minute}:00')
 
                 num_of_appointments += 1
+                if num_of_appointments >= 10:
+                    break
+                
+                appointment_start_time = appointment_end_time
+                appointment_end_time = appointment_start_time + timezone.timedelta(minutes=appointment_duration)
+
+                
 
         # prevent any empty keys
         if current_day_hours:
             available_dates[f"{appointment_start_time.year}-{appointment_start_time.month}-{appointment_start_time.day}"] = current_day_hours
 
         # change the appointment_start_time to the start of the next day (8:00 am)
-        appointment_start_time = timezone.datetime(appointment_start_time.year, appointment_start_time.month, appointment_start_time.day, 8, 0, tzinfo=current_timezone) + timezone.timedelta(days=1)
+        appointment_start_time = (appointment_start_time.replace(hour=8, minute=0) + timezone.timedelta(days=1))
         appointment_end_time = appointment_start_time + timezone.timedelta(minutes=appointment_duration)
+        end_of_day = appointment_start_time.replace(hour=18, minute=0, second=0, microsecond=0)
 
     return Response(data= {
         'appointments': available_dates,
-        'AI_response': fetched_resposne.get("possibilities"),
+        'ai_response': fetched_resposne.get("possibilities"),
         "cost": int(fetched_resposne.get("cost")),
         "duration": appointment_duration
     }, status=status.HTTP_200_OK)    
@@ -95,6 +113,38 @@ def get_available_times(request):
 class AppointmentCreateAPIView(CreateAPIView):
     serializer_class = AppointmentSerializer
     queryset = Appointment.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            with transaction.atomic():  # Start atomic transaction
+                # Lock overlapping rows to prevent concurrent bookings
+                start_time = serializer.validated_data.get("start_time")
+                end_time = serializer.validated_data.get("end_time")
+
+                # Check for overlaps with locked rows
+                overlapping = Appointment.objects.select_for_update().filter(
+                    start_time__lt=end_time,
+                    end_time__gt=start_time
+                ).exists()
+
+                if overlapping:
+                    return Response(
+                        {"detail": "This time slot is already booked"},
+                        status=status.HTTP_409_CONFLICT
+                    )
+
+                # Save the appointment if no overlaps
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def check_permissions(self, request):
         if request.data.get("customer") != request.user.customer.id:
