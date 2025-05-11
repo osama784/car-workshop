@@ -1,4 +1,4 @@
-from rest_framework import serializers, validators
+from rest_framework import serializers
 from rest_framework_simplejwt.tokens import AccessToken
 from django.core.validators import MinLengthValidator
 
@@ -9,10 +9,6 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-
-# class UserCreateSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         fields = ["username", "email", "password"]
 
 class CustomerCreateSerializer(serializers.ModelSerializer):
     username = serializers.CharField(max_length=200, validators=[MinLengthValidator(limit_value=4)])
@@ -25,6 +21,10 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
     
 
     def create(self, validated_data):
+        # check if "email" exists before
+        if User.objects.filter(email=validated_data.get("email")).exists():
+                raise serializers.ValidationError({"message": "unvalid email", "success": False})
+        
         user = User.objects.create_user(
             username=validated_data.get("username"),
             password=validated_data.get("password"), 
@@ -40,8 +40,8 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         if 'email' in validated_data and instance.user.email != validated_data.get('email'):
-            if User.objects.filter(email=validated_data.get("email")).exclude(pk=instance.pk).exists():
-                raise serializers.ValidationError("unvalid email")
+            if User.objects.filter(email=validated_data.get("email")).exists():
+                raise serializers.ValidationError({"message": "unvalid email", "success": False})
             else:
                 setattr(instance.user, 'email', validated_data.get("email"))
         

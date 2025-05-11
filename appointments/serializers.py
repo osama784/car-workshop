@@ -1,6 +1,6 @@
 from rest_framework import serializers, exceptions, status
 from django.utils import timezone
-from datetime import datetime
+from django.db.models import Q
 
 from .models import Appointment
 
@@ -27,6 +27,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Appointment
         fields = [
+            'id',
             'customer', 
             'start_time', 
             'end_time', 
@@ -47,13 +48,20 @@ class AppointmentSerializer(serializers.ModelSerializer):
             raise exceptions.PermissionDenied("end_time should be bigger than start_time, and the difference between the start and the end is between 120 and 300 minutes")
         
         # check if reserved before
-        
         overlapping = Appointment.objects.filter(
-                start_time__lt=appointment_end_time,
-                end_time__gt=appointment_start_time
+            Q(start_time__gte = appointment_start_time,
+            start_time__lt = appointment_end_time) |
+
+            Q(end_time__gt = appointment_start_time,
+            end_time__lte = appointment_end_time) |
+
+            Q(start_time__lte=appointment_start_time,
+            end_time__gte=appointment_end_time),
+
+            canceled=False
         ).exists()
         if overlapping:
-            raise exceptions.PermissionDenied("This time slot is already booked", code=status.HTTP_400_BAD_REQUEST)
+            raise exceptions.PermissionDenied("This time slot is already booked", code=status.HTTP_409_CONFLICT)
         return super().create(validated_data)
     
         

@@ -5,7 +5,9 @@ from rest_framework.generics import CreateAPIView
 from rest_framework import status, exceptions
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 
 from .models import Appointment
 from .serializers import AppointmentSerializer
@@ -23,31 +25,30 @@ def get_appointments(request):
     appointments = Appointment.objects.filter(customer=request.user.customer)
 
     if appointment_status == "pending":
-        appointments = appointments.filter(end_time__lt=timezone.now())
+        appointments = appointments.filter(end_time__gt=timezone.now(), canceled=False)
     if appointment_status == "completed":
-        appointments= appointments.filter(end_time__gte=timezone.now())
+        appointments= appointments.filter(end_time__lt=timezone.now(), canceled=False)
     if appointment_status == "canceled":
         appointments = appointments.filter(canceled=True)   
     
+    data = AppointmentSerializer(appointments, many=True).data
 
-    return Response(data={"appointments": appointments, "success": True}, status=status.HTTP_200_OK)
+    return Response(data={"appointments": data, "success": True}, status=status.HTTP_200_OK)
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def cancel_appointment(request, pk):
-    try:
-        appointment = Appointment.objects.get(customer=request.user.customer, pk=pk)
-        appointment.canceled = True
-        appointment.save()
-    except:
-        return Response(data={"success": False, "message": "not found"}, status=status.HTTP_404_NOT_FOUND)
+    appointment = get_object_or_404(Appointment, customer=request.user.customer.pk, pk=pk)
+    appointment.canceled = True
+    appointment.save()
+
 
     return Response(data={"success": True}, status=status.HTTP_200_OK)
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_available_times(request):
-    appointments = Appointment.objects.all()
+    appointments = Appointment.objects.filter(canceled=False)
     fetched_resposne = fetch_prompt_info(send_prompt(request.data.get("user_message")))
 
     # get every day and see available appointments in it, and if there is, any increase the counter
@@ -70,9 +71,16 @@ def get_available_times(request):
 
         while appointment_end_time <= end_of_day:
             overlapping = appointments_for_day.filter(
-                start_time__lt=appointment_end_time,
-                end_time__gt=appointment_start_time
-                ).exists()
+                Q(start_time__gte = appointment_start_time,
+                start_time__lt = appointment_end_time) |
+
+                Q(end_time__gt = appointment_start_time,
+                end_time__lte = appointment_end_time) |
+
+                Q(start_time__lte=appointment_start_time,
+                end_time__gte=appointment_end_time)
+            ).exists()
+            
             if overlapping:
                 last_appointment = appointments_for_day.filter(end_time__gt=appointment_start_time).first()
                 if last_appointment:
@@ -126,8 +134,16 @@ class AppointmentCreateAPIView(CreateAPIView):
 
                 # Check for overlaps with locked rows
                 overlapping = Appointment.objects.select_for_update().filter(
-                    start_time__lt=end_time,
-                    end_time__gt=start_time
+                    Q(start_time__gte = start_time,
+                    start_time__lt = end_time) |
+
+                    Q(end_time__gt = start_time,
+                    end_time__lte = end_time) |
+
+                    Q(start_time__lte=start_time,
+                    end_time__gte=end_time),
+
+                    canceled=False,
                 ).exists()
 
                 if overlapping:
