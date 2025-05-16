@@ -6,15 +6,18 @@ client = InferenceClient(
 	api_key=config("HF_API_KEY")
 )
 
-def send_prompt(user_message: str) -> str:
+def send_prompt(data: dict) -> str:
+	user_message = f"problem type :{data.get("problem_type")}, and the car brand: {data.get("car_brand")}, the car model: {data.get("car_model")}"
+	if data.get("description"):
+		user_message += f", and more description: {data.get("description")}"
 	messages = [
 		{
 			"role": "user",
-			"content": f"{user_message}"
+			"content": user_message
 		},
 		{
 			"role": "assistant",
-			"content": "You are a car maintenance expert. Answer only about vehicle repairs, maintenance, or related topics. Refuse to answer any unrelated questions.I want the answer to be like this form:\n cost: (your answer here)\n reason: (your answer here)\n time to fix: (your answer here)\n possibilities: (your answer here)\n note that i want the reason to be just one or two words, the cost just a number with no range values,the time to fix field give it to me in mintues and it starts from 120 mintues to 300 minutes and send just the number, and no limit for the possibilities"
+			"content": "You are a car maintenance expert. Answer only about vehicle repairs, maintenance, or related topics. Refuse to answer any unrelated questions.I want the answer to be like this form:\n cost: (your answer here)\n time to fix: (your answer here)\n possibilities: (your answer here)\n note that i want the 'cost' section just a number with no range values,the 'time to fix' field give it to me in mintues and it starts from 120 mintues to 300 minutes and send just the number, and no limit for the 'possibilities' so answer me in the 'possibilities' section as a human."
 		}
 	]
 
@@ -40,5 +43,3 @@ def fetch_prompt_info(ai_response: str) -> dict:
 	return final_response	
 
 
-
-print(fetch_prompt_info(send_prompt("i have oil leaks")).get("time to fix"))   

@@ -13,7 +13,7 @@ class Appointment(models.Model):
     problem_type = models.CharField(max_length=200)
     description = models.TextField(blank=True, null=True)
     cost = models.PositiveIntegerField()
-    canceled = models.BooleanField(default=False)
+    cancelled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

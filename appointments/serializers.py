@@ -28,7 +28,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
         model = Appointment
         fields = [
             'id',
-            'customer', 
             'start_time', 
             'end_time', 
             'car_brand',
@@ -39,7 +38,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'cost',
             ]
  
-    def create(self, validated_data):
+    def create(self, validated_data: dict):
         appointment_start_time = validated_data.get("start_time")
         appointment_end_time = validated_data.get("end_time")
 
@@ -58,10 +57,19 @@ class AppointmentSerializer(serializers.ModelSerializer):
             Q(start_time__lte=appointment_start_time,
             end_time__gte=appointment_end_time),
 
-            canceled=False
+            cancelled=False
         ).exists()
         if overlapping:
             raise exceptions.PermissionDenied("This time slot is already booked", code=status.HTTP_409_CONFLICT)
+        customer = self.context.get("request").user.customer
+        validated_data["customer"] = customer
         return super().create(validated_data)
     
         
+
+class AvailableTimesSerializer(serializers.Serializer):
+    car_brand = serializers.CharField(max_length=50)
+    car_model = serializers.CharField(max_length=50)
+    car_year = serializers.IntegerField()
+    problem_type = serializers.CharField(max_length=200)
+    description = serializers.CharField(required=False)       
