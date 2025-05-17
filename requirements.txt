@@ -3,3 +3,4 @@ djangorestframework
 python-decouple==3.8
 huggingface_hub
 djangorestframework-simplejwt
+django-cors-headers==4.3.1

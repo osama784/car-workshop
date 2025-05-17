@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import AccessToken
-from django.core.validators import MinLengthValidator
+from django.core.validators import MinLengthValidator, MaxLengthValidator
 
 from .models import Customer
 
@@ -47,11 +47,7 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
         
         if 'username' in validated_data:
             setattr(instance.user, 'username', validated_data.get("username"))
-        
-        if 'password' in validated_data:
-            instance.user.set_password(validated_data['password'])        
-
-
+   
         instance.phone_number = validated_data.get("phone_number", instance.phone_number) 
 
         instance.user.save()
@@ -70,6 +66,7 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
         }
     
     
-    
-    
-    
+class ResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    reset_code = serializers.CharField(validators=[MinLengthValidator(limit_value=6), MaxLengthValidator(limit_value=6)])
+    password = serializers.CharField(validators=[MinLengthValidator(limit_value=4)])

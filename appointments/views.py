@@ -45,7 +45,7 @@ def cancel_appointment(request, pk):
 
     return Response(data={"success": True}, status=status.HTTP_200_OK)
 
-@api_view(["GET"])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def get_available_times(request):
     appointments = Appointment.objects.filter(cancelled=False)
