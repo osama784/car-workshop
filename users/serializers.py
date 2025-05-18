@@ -23,7 +23,7 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # check if "email" exists before
         if User.objects.filter(email=validated_data.get("email")).exists():
-                raise serializers.ValidationError({"message": "unvalid email", "success": False})
+                raise serializers.ValidationError({"detail": "email already in use"})
         
         user = User.objects.create_user(
             username=validated_data.get("username"),
@@ -41,7 +41,7 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         if 'email' in validated_data and instance.user.email != validated_data.get('email'):
             if User.objects.filter(email=validated_data.get("email")).exists():
-                raise serializers.ValidationError({"message": "unvalid email", "success": False})
+                raise serializers.ValidationError({"detail": "email already in use"})
             else:
                 setattr(instance.user, 'email', validated_data.get("email"))
         

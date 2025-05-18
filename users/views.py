@@ -49,7 +49,7 @@ def get_verification_code(request):
     valid = re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email)
 
     if not valid:
-        return Response(data={"detail": "unvalid email"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(data={"detail": "invalid email"}, status=status.HTTP_400_BAD_REQUEST)
     
     user = get_object_or_404(User, email=email)
     reset_code = user.generate_reset_code()
@@ -67,9 +67,12 @@ def get_verification_code(request):
         to=[email]
     )
     email.content_subtype = 'html'
-    email.send()
+    try:
+        email.send()
+    except OSError:
+        return Response(data={"detail": "Please resend your email, something goes wrong with the connection"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)    
     
-    return Response(status=status.HTTP_200_OK)
+    return Response(data={"detail": "Email sent successfully"}, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
