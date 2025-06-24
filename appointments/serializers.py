@@ -36,6 +36,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'problem_type',
             'description',
             'cost',
+            'cancelled'
             ]
  
     def create(self, validated_data: dict):

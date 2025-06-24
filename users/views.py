@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from django.core.mail import EmailMessage
 from django.shortcuts import get_object_or_404
@@ -12,7 +13,7 @@ import re
 from datetime import datetime
 
 
-from .serializers import CustomerCreateSerializer, ResetPasswordSerializer
+from .serializers import CustomerCreateSerializer, ResetPasswordSerializer, CustomTokenObtainPairSerializer
 from .models import Customer
 from users.models import User
 
@@ -42,6 +43,9 @@ class CustomerUpdateAPIView(UpdateAPIView):
 
         return Response(serializer.data)    
     
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer    
 
 @api_view(['POST'])
 def get_verification_code(request):

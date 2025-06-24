@@ -66,10 +66,17 @@ def get_available_times(request):
     appointment_start_time = tomorrow.replace(hour=8, minute=0, second=0, microsecond=0, tzinfo=timezone.get_current_timezone())
     appointment_end_time = appointment_start_time + timezone.timedelta(minutes=appointment_duration)
     end_of_day = appointment_start_time.replace(hour=18, minute=0, second=0, microsecond=0)
+    FRIDAY_ORDER = 4
     for _ in range(11):
         if num_of_appointments >= 10:
             break
-
+        
+        if appointment_start_time.weekday() == FRIDAY_ORDER:
+            appointment_start_time = appointment_start_time.replace(hour=8, minute=0) + timezone.timedelta(days=1)
+            appointment_end_time = appointment_start_time + timezone.timedelta(minutes=appointment_duration)
+            end_of_day = appointment_start_time.replace(hour=18, minute=0, second=0, microsecond=0)
+            continue
+        
         appointments_for_day = appointments.filter(start_time__date=appointment_start_time.date())
         current_day_hours = []
 

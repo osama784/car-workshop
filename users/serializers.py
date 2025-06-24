@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.core.validators import MinLengthValidator, MaxLengthValidator
 
 from .models import Customer
@@ -70,3 +71,20 @@ class ResetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
     reset_code = serializers.CharField(validators=[MinLengthValidator(limit_value=6), MaxLengthValidator(limit_value=6)])
     password = serializers.CharField(validators=[MinLengthValidator(limit_value=4)])
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        # Get the default token response
+        data = super().validate(attrs)
+        
+        # Add custom fields to the response
+        data.update({
+            "user": {
+                "id": self.user.id,
+                "username": self.user.username,
+                "email": self.user.email,
+            }
+            # Include any other user-related data here
+        })
+        return data    
